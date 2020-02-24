@@ -1,54 +1,45 @@
 # hydrate-stream
 
-A batteries excluded stream transformer with API for declaritively hydrating elements (adding onclick handlers). Use case is for server rendering static html with simple javascript for minimal interactivity.
+An experimental batteries excluded stream transformer with a simple API for declaritively hydrating elements (like adding onclick handlers). 
+
+The motivation behind this is to do server side rendering and selectively hydrating the interactive elements on a page. This is an experiment at building a minimal framework around streaming rendering.
 
 ```sh
 npm install hydrate-stream
 ```
 
+```js
+import { hydrateStream } from 'hydrate-stream';
+
+const hydrators = [{
+    id: 'root',
+    key: 'onload',
+    value: `
+        function loadJS() {
+            console.log('script run on load');
+        } 
+        loadJS();
+    `
+}, {
+    id: 'cta',
+    key: 'onclick',
+    value: `
+        function minimalJS() {
+            console.log('script run on click');
+        }
+        minimalJS();
+    `
+}];
+
+renderToStaticNodeStream(<Component />).pipe(hydrateStream(hydrators))
+```
+
+Two basic use cases are `onclick` and `onload`. For `onload` a `<script>` tag is injected after the mapped element.
+
 ## Usage
 
-```js
-import { hydrateStream, NavLink  } from 'hydrate-stream';
+See example directory
 
+## Credits
 
-const hydrationRegistry = {
-    contactInfo: {
-        component: <ContactInfo />,
-        handlers: [
-            {
-                id: 'buttonNext',
-                key: 'onclick',
-                value: NavLink({ root: 'contactInfoRoot', route: '/advance/confirmation' })
-            },
-            {
-                id: 'buttonBack',
-                key: 'onclick',
-                value: NavLink({ root: 'contactInfoRoot', route: '/advance/datePicker' })
-            }
-        ]
-    },
-    confirmation: {
-        component: <SubmitConfirmation />,
-        handlers: [
-            {
-                id: 'root', // Can render at root for full page client side navigate
-                key: 'onclick',
-                value: NavLink({ root: 'root', route: '/advance/submit' })
-            },
-            {
-                id: 'buttonBack',
-                key: 'onclick',
-                value: NavLink({ root: 'submitconfirmationRoot', route: '/advance/contactInfo' })
-            }
-        ]
-    }
-// similar to sheets-registry-stream, we pipe the rendered react stream to a transformer before piping to the response.
-const render = (hydrated, res) => {
-    renderToStaticNodeStream(hydrated.component)
-        .pipe(hydrateStream(hydrated.handlers))
-        .pipe(res);
-};
-// route determines which handlers to hyndrate based on param
-app.get('/advance/:step', (req, res) => render(hydrationRegistry[req.params.step], res));
-```
+* [himalaya](https://www.npmjs.com/package/himalaya)

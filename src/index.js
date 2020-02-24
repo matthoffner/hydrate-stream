@@ -1,52 +1,45 @@
-import stream from 'stream';
-import { parse, stringify } from 'himalaya';
-import { isArray } from 'lodash';
-
-const appendHandler = (html, handlers) => {
-    isArray(html.attributes) &&
-        Object.values(html.attributes).forEach(attr => {
-            Object.values(handlers).forEach(handler => {
-                if (handler.id === attr.value) {
-                    html.attributes.push({
-                        key: handler.key,
-                        value: handler.value
-                    });
-                }
-            });
-        });
-};
+const stream = require('stream');
+const himalaya= require('himalaya');
 
 const hydrate = ({ chunk, handlers }) => {
-    const htmlObject = parse(chunk.toString());
+    const htmlObject = himalaya.parse(chunk.toString());
     Object.keys(htmlObject).forEach(element => {
-        appendHandler(htmlObject[element], handlers);
+        const handlerMatch = htmlObject[element].attributes
+            .find(a => handlers.filter(h => h.key === a.key));
+        if (handlerMatch) {
+            const handler = handlers.filter(f => f.id === handlerMatch.value);
+            if (handler.length && handler[0].key === 'onload') {
+                htmlObject.push({
+                    attributes: [],
+                    type: 'element',
+                    tagName: 'script',
+                    children: [
+                        {
+                            type: 'text',
+                            content: handler[0].value
+                        }
+                    ]
+                })
+            } else {
+                Object.values(htmlObject[element].attributes).forEach(attr => {
+                    if (handler[0].id === attr.value) {
+                        htmlObject[element].attributes.push({
+                            key: handler[0].key,
+                            value: handler[0].value
+                        })
+                    }
+                })
+            }
+        }
     });
 
-    return [stringify(htmlObject)];
+    return [himalaya.stringify(htmlObject)];
 };
 
-export const hydrateStream = handlers =>
+module.exports.hydrateStream = handlers =>
     new stream.Transform({
         transform: function hydrateChunks(chunk, encoding, callback) {
             this.push(Buffer.from(`${hydrate({ chunk, handlers })}`));
             callback();
         }
     });
-
-
-export const NavLink = ({ root, route }) =>
-    `
-        function init() {
-            function listener() {
-                if (this.status === 200) {
-                    const node = document.getElementById('${root}');
-                    node.innerHTML = this.responseText;
-                }
-            }
-            var oReq = new XMLHttpRequest();
-            oReq.addEventListener('load', listener);
-            oReq.open('GET', '${route}');
-            oReq.send();
-        }
-        init()
-        `;
